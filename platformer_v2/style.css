@@ -145,6 +145,9 @@ button { width: auto; overflow: visible; }
  * Author: Vesa "VesQ" Laakso
  */
 
+html {
+  overflow-y: auto;
+}
 body {
   background-color: black;
   color: white;
@@ -153,22 +156,15 @@ body {
 
 #container {
   width: 800px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-#maincontainer {
-  width: 100%;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0 auto;
 }
 
 #canvascontainer {
-  width: 0px;
-  height: 0px;
   border: 1px solid #777;
   box-shadow: 0 0 10px 5px #eee;
   margin: 2em auto;
+  position: relative;
+  overflow: hidden;
 }
 
 h1 { font-size: 250%; font-weight: bold; margin-bottom: 0.5em; text-align: center; }
