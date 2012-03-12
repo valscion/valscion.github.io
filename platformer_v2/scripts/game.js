@@ -6,9 +6,11 @@
 define(["require"], function GameDefine(require) {
 
 /** @constructor */
-var Game = function Game(stage) {
+var Game = function Game(stage, config) {
   /** KineticJS Stage */
   this.stage = stage;
+  /** Config, @see config.js */
+  this.config = config;
   /** Sprites */
   this.sprites = {};
 };
@@ -24,12 +26,18 @@ Game.prototype.init = function () {
   debug.debug(this.stage);
   debug.groupEnd();
 
+  // Set the #canvascontainer width and height according to the loaded config
+  $("#canvascontainer").width(this.config.canvasWidth);
+  $("#canvascontainer").height(this.config.canvasHeight);
+
+  // Load the media
   this.loadMedia(function () {
+    // Create and draw the sprites after media is loaded
     self.drawSprites();
   });
 };
 
-/** Loads media and draws some sort of loading bar */
+/** Loads media and draws some sort of loading bar (TODO: The loading bar ;D) */
 Game.prototype.loadMedia = function (callback) {
   // Load media.json from ../media/media.json
   var url = require.toUrl('../media/media.json');

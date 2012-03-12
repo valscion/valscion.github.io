@@ -1,5 +1,5 @@
 // Let's try to load something
-require(["require", "jquery", "game", "lib/kinetic-v3.8.2"], function (require, $, game) {
+require(["require", "jquery", "game", "config", "lib/kinetic-v3.8.3"], function (require, $, game, config) {
   // Start running things after the DOM is ready
   $(document).ready(function () {
     // Initialize variables
@@ -37,10 +37,10 @@ require(["require", "jquery", "game", "lib/kinetic-v3.8.2"], function (require, 
     stage.add(overAnimLayer);
     stage.add(overStaticLayer);
     stage.add(hudLayer);
-    
+
     // Create a new game
-    Game = new game.Game(stage);
-    
+    Game = new game.Game(stage, config);
+
     // Start the game. From now on, everything is handled within the game.js
     Game.init();
   });
