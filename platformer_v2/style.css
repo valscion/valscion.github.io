@@ -160,7 +160,6 @@ body {
 }
 
 #canvascontainer {
-  border: 1px solid #777;
   box-shadow: 0 0 10px 5px #eee;
   margin: 2em auto;
   position: relative;

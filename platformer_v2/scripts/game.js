@@ -6,7 +6,7 @@
 define(["require"], function GameDefine(require) {
 
 /** @constructor */
-var Game = function Game(stage, config) {
+var Game = function (stage, config) {
   /** KineticJS Stage */
   this.stage = stage;
   /** Config, @see config.js */
@@ -15,55 +15,61 @@ var Game = function Game(stage, config) {
   this.sprites = {};
 };
 
-/** Initializing function */
-Game.prototype.init = function () {
-  var self = this;
 
-  debug.groupCollapsed('Init');
-  debug.info('Hello, world!');
-  debug.debug($);
-  debug.debug(Kinetic);
-  debug.debug(this.stage);
-  debug.groupEnd();
+Game.prototype = {
+  /** Initializing function */
+  init: function () {
+    var self = this;
 
-  // Set the #canvascontainer width and height according to the loaded config
-  $("#canvascontainer").width(this.config.canvasWidth);
-  $("#canvascontainer").height(this.config.canvasHeight);
+    debug.groupCollapsed('Init');
+    debug.info('Hello, world!');
+    debug.debug($);
+    debug.debug(Kinetic);
+    debug.debug(this.stage);
+    debug.groupEnd();
 
-  // Load the media
-  this.loadMedia(function () {
-    // Create and draw the sprites after media is loaded
-    self.drawSprites();
-  });
-};
+    // Set the #canvascontainer width and height according to the loaded config
+    $("#canvascontainer").width(this.config.canvasWidth);
+    $("#canvascontainer").height(this.config.canvasHeight);
 
-/** Loads media and draws some sort of loading bar (TODO: The loading bar ;D) */
-Game.prototype.loadMedia = function (callback) {
-  // Load media.json from ../media/media.json
-  var url = require.toUrl('../media/media.json');
-  $.ajax(url, {
-    dataType: 'json',
-    error: function (jqXHR, textStatus, errorThrown) {
-      debug.error('Failed to fetch ' + url);
-      debug.group('error arguments');
-      debug.dir(jqXHR);
-      debug.log(textStatus);
-      debug.log(errorThrown);
-      debug.groupEnd();
-    },
-    success: function (data, textStatus) {
-      debug.info('Fetched media.json: ' + textStatus);
-      debug.dir(data);
+    // Load the media
+    this.loadMedia(function (spriteImg) {
+      // Split the sprites
+      self.createSprites(spriteImg);
+    });
+  },
+
+  /** Loads media */
+  loadMedia: function (callback) {
+    var spriteImg = new Image();
+    spriteImg.onload = function () {
+      callback(spriteImg);
+    };
+    spriteImg.src = require.toUrl(this.config.sprites.source);
+  },
+
+  /** Splits the spritesheet to separate sprites */
+  createSprites: function (spriteImg) {
+    // Create a new temporary canvas
+    var canvas   = document.createElement("canvas"),
+      ctx        = canvas.getContext("2d"),
+      // Calculate total amount of frames
+      frameCount = (spriteImg.width * spriteImg.height) / (this.config.sprites.frameWidth * this.config.sprites.frameHeight);
+
+    if (frameCount !== Math.round(frameCount)) {
+      throw new TypeError(this.config.sprites.source + ' has irregural frame widths or heights');
     }
-  });
-};
 
-/** Draws the sprites */
-Game.prototype.drawSprites = function () {
+    // TODO:
+    //  1. Draw the separate frames to the temporary canvas
+    //  2. Save the canvas data
+    //  3. Pass the saved data to create a new image
+    //  4. Save the new created image to the place where it belongs to in this.sprites object
+    //  5. Goto 1.
+  }
+}
 
-};
-
-// Expose the `Game` function in an object, in "Game" field
+// Expose the `Game` class in an object, in "Game" field
 return {"Game": Game};
 
 });
