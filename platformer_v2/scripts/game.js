@@ -53,8 +53,13 @@ Game.prototype = {
     // Create a new temporary canvas
     var canvas   = document.createElement("canvas"),
       ctx        = canvas.getContext("2d"),
+      frameWidth = this.config.sprites.frameWidth,
+      frameHeight = this.config.sprites.frameHeight,
       // Calculate total amount of frames
-      frameCount = (spriteImg.width * spriteImg.height) / (this.config.sprites.frameWidth * this.config.sprites.frameHeight);
+      frameCount = (spriteImg.width * spriteImg.height) / (frameWidth * frameHeight),
+      sprites = this.config.sprites,
+      obj,
+      sprite;
 
     if (frameCount !== Math.round(frameCount)) {
       throw new TypeError(this.config.sprites.source + ' has irregural frame widths or heights');
@@ -66,6 +71,13 @@ Game.prototype = {
     //  3. Pass the saved data to create a new image
     //  4. Save the new created image to the place where it belongs to in this.sprites object
     //  5. Goto 1.
+
+    for (obj in sprites) {
+      if (sprites.hasOwnProperty(obj) && obj !== "source" && obj !== "frameWidth" && obj !== "frameHeight") {
+        sprite = sprites[obj];
+        debug.dir(sprite);
+      }
+    }
   }
 }
 
