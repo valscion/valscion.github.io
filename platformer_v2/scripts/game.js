@@ -75,9 +75,63 @@ Game.prototype = {
     for (obj in sprites) {
       if (sprites.hasOwnProperty(obj) && obj !== "source" && obj !== "frameWidth" && obj !== "frameHeight") {
         sprite = sprites[obj];
-        debug.dir(sprite);
+        sprite.frameW = frameWidth;
+        sprite.frameH = frameHeight;
+        sprite.name = obj;
+        sprite.mirror = !!sprite.mirror;
+        sprite.x = frameWidth * sprite.x;
+        sprite.y = frameHeight * sprite.y;
+        this.createSingleSprite(spriteImg, sprite);
       }
     }
+  },
+  
+  /** Creates a single sprite
+   * @param {Image} img  A loaded image of all sprites
+   * @param {Object} sprite  Object that contains info of how the sprite is made
+   * @param sprite.frameW  Width of a single frame
+   * @param sprite.frameH  Height of a single frame
+   * @param sprite.name  The name of the sprite
+   * @param sprite.x  Where the sprite is located at in the image
+   * @param sprite.y  Where the sprite is located at in the image
+   * @param sprite.frames  How many animation frames are there
+   * @param sprite.mirror  Should every frame be mirrored or not
+   */
+  createSingleSprite: function (img, sprite) {
+    debug.groupCollapsed('Creating sprite ' + sprite.name);
+    debug.dir(img);
+    debug.dir(sprite);
+    
+    
+    var canvas = document.createElement('canvas'),
+      ctx = canvas.getContext('2d'),
+      newImg = new Image();
+    
+    ctx.drawImage(img, 
+      sprite.x,                                                // Source X
+      sprite.y,                                                // Source Y
+      sprite.frames * sprite.frameW,                           // Source width
+      sprite.frames * sprite.frameH,                           // Source height
+      0,                                                       // Dest. X
+      0,                                                       // Dest. Y
+      sprite.frames * sprite.frameW,                           // Dest. width
+      sprite.frames * sprite.frameH                            // Dest. height
+    );
+    
+    newImg.src = canvas.toDataURL();
+    
+    $(newImg).appendTo($("#canvascontainer").parent()).
+      css({visibility: 'hidden'}).
+      wrap('<div>').
+      parent('div').
+      css({border: '1px dashed #aaa', 'float': 'left', margin: '10px'}).
+      hover(function () {
+        $(this).children('img').css({visibility: 'visible'});
+      }, function () {
+        $(this).children('img').css({visibility: 'hidden'});
+      });
+    
+    debug.groupEnd();
   }
 }
 
