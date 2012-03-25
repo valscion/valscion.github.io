@@ -25,7 +25,7 @@ define(function configDefine() {
           frames: 10
         },
         hangLeft: {
-          mirror: "hangLeft"
+          mirror: "hangRight"
         },
         coin: {
           x: 10,

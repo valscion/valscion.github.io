@@ -105,17 +105,22 @@ Game.prototype = {
     
     var canvas = document.createElement('canvas'),
       ctx = canvas.getContext('2d'),
+      width = sprite.frames * sprite.frameW,
+      height = sprite.frameH,
       newImg = new Image();
     
+    canvas.width = width;
+    canvas.height = height;
+    
     ctx.drawImage(img, 
-      sprite.x,                                                // Source X
-      sprite.y,                                                // Source Y
-      sprite.frames * sprite.frameW,                           // Source width
-      sprite.frames * sprite.frameH,                           // Source height
-      0,                                                       // Dest. X
-      0,                                                       // Dest. Y
-      sprite.frames * sprite.frameW,                           // Dest. width
-      sprite.frames * sprite.frameH                            // Dest. height
+      sprite.x,        // Source X
+      sprite.y,        // Source Y
+      width,           // Source width
+      height,          // Source height
+      0,               // Dest. X
+      0,               // Dest. Y
+      width,           // Dest. width
+      height           // Dest. height
     );
     
     newImg.src = canvas.toDataURL();
@@ -124,7 +129,7 @@ Game.prototype = {
       css({visibility: 'hidden'}).
       wrap('<div>').
       parent('div').
-      css({border: '1px dashed #aaa', 'float': 'left', margin: '10px'}).
+      css({border: '1px dashed #aaa', 'float': 'left', margin: '10px', lineHeight: 0}).
       hover(function () {
         $(this).children('img').css({visibility: 'visible'});
       }, function () {
