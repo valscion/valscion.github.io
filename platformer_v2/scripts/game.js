@@ -78,7 +78,7 @@ Game.prototype = {
         sprite.frameW = frameWidth;
         sprite.frameH = frameHeight;
         sprite.name = obj;
-        sprite.mirror = !!sprite.mirror;
+        sprite.mirrored = !!sprite.mirror;
         sprite.x = frameWidth * sprite.x;
         sprite.y = frameHeight * sprite.y;
         this.createSingleSprite(spriteImg, sprite);
@@ -95,7 +95,7 @@ Game.prototype = {
    * @param sprite.x  Where the sprite is located at in the image
    * @param sprite.y  Where the sprite is located at in the image
    * @param sprite.frames  How many animation frames are there
-   * @param sprite.mirror  Should every frame be mirrored or not
+   * @param sprite.mirrored  Should every frame be mirrored or not
    */
   createSingleSprite: function (img, sprite) {
     debug.groupCollapsed('Creating sprite ' + sprite.name);
@@ -107,21 +107,25 @@ Game.prototype = {
       ctx = canvas.getContext('2d'),
       width = sprite.frames * sprite.frameW,
       height = sprite.frameH,
-      newImg = new Image();
+      newImg = new Image(),
+      i;
     
     canvas.width = width;
     canvas.height = height;
     
-    ctx.drawImage(img, 
-      sprite.x,        // Source X
-      sprite.y,        // Source Y
-      width,           // Source width
-      height,          // Source height
-      0,               // Dest. X
-      0,               // Dest. Y
-      width,           // Dest. width
-      height           // Dest. height
-    );
+    for (i = 0; i < sprite.frames; i++) {
+      ctx.drawImage(
+        img,                           // Image source
+        sprite.x + sprite.frameW  * i, // Source X
+        sprite.y,                      // Source Y
+        sprite.frameW,                 // Source width
+        sprite.frameH,                 // Source height
+        sprite.frameW * i,             // Dest. X
+        0,                             // Dest. Y
+        sprite.frameW,                 // Dest. width
+        sprite.frameH                  // Dest. height
+      );
+    }
     
     newImg.src = canvas.toDataURL();
     
