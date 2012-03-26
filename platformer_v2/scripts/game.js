@@ -13,6 +13,8 @@ var Game = function (stage, config) {
   this.config = config;
   /** Sprites */
   this.sprites = {};
+  /** Is the game ready to be drawn */
+  this.ready = false;
 };
 
 
@@ -36,6 +38,11 @@ Game.prototype = {
     this.loadMedia(function (spriteImg) {
       // Split the sprites
       self.createSprites(spriteImg);
+      // We're ready, allow drawing
+      self.ready = true;
+
+      // Do some initial drawing
+      self.draw();
     });
   },
 
@@ -144,18 +151,48 @@ Game.prototype = {
 
     newImg.src = canvas.toDataURL();
 
-    $(newImg).appendTo($("#canvascontainer").parent()).
-      css({visibility: 'hidden'}).
-      wrap('<div>').
-      parent('div').
-      css({border: '1px dashed #aaa', 'float': 'left', margin: '10px', lineHeight: 0}).
-      hover(function () {
-        $(this).children('img').css({visibility: 'visible'});
-      }, function () {
-        $(this).children('img').css({visibility: 'hidden'});
-      });
+    // Store the image
+    this.sprites[sprite.name] = {
+      img: newImg,
+      frames: sprite.frames,
+      frameW: sprite.frameW,
+      frameH: sprite.frameH
+    };
 
     debug.groupEnd();
+  },
+
+  /** Draws stuff */
+  draw: function () {
+    var staticLayer = this.stage.getChild('static'),
+      i,
+      spriteNames = Object.keys(this.sprites),
+      self = this;
+
+    for (i = 0; i < spriteNames.length; i++) {
+      // anonymous function to induce scope
+      (function () {
+        var sprite = self.sprites[spriteNames[i]],
+          shape = new Kinetic.Image({
+            x: 10,
+            y: 10 + i * (sprite.frameH + 10),
+            image: sprite.img,
+            draggable: true
+          });
+
+        shape.on('mouseover', function () {
+          $('#canvascontainer').css({'cursor': 'pointer'});
+        });
+        shape.on('mouseout', function () {
+          $('#canvascontainer').css({'cursor': 'default'});
+        });
+
+        staticLayer.add(shape);
+      })();
+    }
+
+    // Invoke the draw
+    staticLayer.draw();
   }
 }
 

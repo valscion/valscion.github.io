@@ -29,6 +29,15 @@ require(["require", "jquery", "game", "config", "lib/kinetic-v3.8.3"], function 
       // always fixed at the same position, relative to the whole canvas itself.
       hudLayer = new Kinetic.Layer({name: 'hud'});
 
+    // Don't allow canvas's to be selected like regular text
+    bgLayer.getCanvas().onselectstart = function () { return false; }
+    staticLayer.getCanvas().onselectstart = function () { return false; }
+    animLayer.getCanvas().onselectstart = function () { return false; }
+    objLayer.getCanvas().onselectstart = function () { return false; }
+    overAnimLayer.getCanvas().onselectstart = function () { return false; }
+    overStaticLayer.getCanvas().onselectstart = function () { return false; }
+    hudLayer.getCanvas().onselectstart = function () { return false; }
+
     // Now let's add the layers, in the correct order, to the stage
     stage.add(bgLayer);
     stage.add(staticLayer);
