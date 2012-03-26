@@ -66,11 +66,10 @@ Game.prototype = {
     }
 
     // TODO:
-    //  1. Draw the separate frames to the temporary canvas
-    //  2. Save the canvas data
+    //  1. [DONE] Draw the separate frames to the temporary canvas
+    //  2. [DONE] Save the canvas data
     //  3. Pass the saved data to create a new image
     //  4. Save the new created image to the place where it belongs to in this.sprites object
-    //  5. Goto 1.
 
     for (obj in sprites) {
       if (sprites.hasOwnProperty(obj) && obj !== "source" && obj !== "frameWidth" && obj !== "frameHeight") {
@@ -85,7 +84,7 @@ Game.prototype = {
       }
     }
   },
-  
+
   /** Creates a single sprite
    * @param {Image} img  A loaded image of all sprites
    * @param {Object} sprite  Object that contains info of how the sprite is made
@@ -101,34 +100,50 @@ Game.prototype = {
     debug.groupCollapsed('Creating sprite ' + sprite.name);
     debug.dir(img);
     debug.dir(sprite);
-    
-    
+
+
     var canvas = document.createElement('canvas'),
       ctx = canvas.getContext('2d'),
       width = sprite.frames * sprite.frameW,
       height = sprite.frameH,
       newImg = new Image(),
       i;
-    
+
     canvas.width = width;
     canvas.height = height;
-    
+
+    ctx.save();
+    // If mirrored, then scale horizontally by -1 to actually mirror the image
+    if (sprite.mirrored) {
+      ctx.scale(-1, 1);
+    }
+
     for (i = 0; i < sprite.frames; i++) {
       ctx.drawImage(
-        img,                           // Image source
-        sprite.x + sprite.frameW  * i, // Source X
-        sprite.y,                      // Source Y
-        sprite.frameW,                 // Source width
-        sprite.frameH,                 // Source height
-        sprite.frameW * i,             // Dest. X
-        0,                             // Dest. Y
-        sprite.frameW,                 // Dest. width
-        sprite.frameH                  // Dest. height
+        // Image source
+        img,
+        // Source X
+        sprite.x + sprite.frameW * (sprite.mirrored ? sprite.frames - i - 1 : i),
+        // Source Y
+        sprite.y,
+        // Source width
+        sprite.frameW,
+        // Source height
+        sprite.frameH,
+        // Destination X
+        sprite.frameW * (sprite.mirrored ? i - sprite.frames : i),
+        // Destination Y
+        0,
+        // Destination width
+        sprite.frameW,
+        // Destination height
+        sprite.frameH
       );
     }
-    
+    ctx.restore();
+
     newImg.src = canvas.toDataURL();
-    
+
     $(newImg).appendTo($("#canvascontainer").parent()).
       css({visibility: 'hidden'}).
       wrap('<div>').
@@ -139,7 +154,7 @@ Game.prototype = {
       }, function () {
         $(this).children('img').css({visibility: 'hidden'});
       });
-    
+
     debug.groupEnd();
   }
 }
