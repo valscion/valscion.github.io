@@ -81,8 +81,8 @@ Game.prototype = {
     for (obj in sprites) {
       if (sprites.hasOwnProperty(obj) && obj !== "source" && obj !== "frameWidth" && obj !== "frameHeight") {
         sprite = sprites[obj];
-        sprite.frameW = frameWidth;
-        sprite.frameH = frameHeight;
+        sprite.frames.width = frameWidth;
+        sprite.frames.height = frameHeight;
         sprite.name = obj;
         sprite.mirrored = !!sprite.mirror;
         sprite.x = frameWidth * sprite.x;
@@ -95,12 +95,14 @@ Game.prototype = {
   /** Creates a single sprite
    * @param {Image} img  A loaded image of all sprites
    * @param {Object} sprite  Object that contains info of how the sprite is made
-   * @param sprite.frameW  Width of a single frame
-   * @param sprite.frameH  Height of a single frame
+   * @param {Object} sprite.frames  Information about frames
+   * @param sprite.frames.width  Width of a single frame
+   * @param sprite.frames.height  Height of a single frame
+   * @param sprite.frames.count  How many animation frames are there
+   * @param sprite.frames.time  If sprite.frame.count > 1 then this is how long a single frame plays
    * @param sprite.name  The name of the sprite
    * @param sprite.x  Where the sprite is located at in the image
    * @param sprite.y  Where the sprite is located at in the image
-   * @param sprite.frames  How many animation frames are there
    * @param sprite.mirrored  Should every frame be mirrored or not
    */
   createSingleSprite: function (img, sprite) {
@@ -111,8 +113,8 @@ Game.prototype = {
 
     var canvas = document.createElement('canvas'),
       ctx = canvas.getContext('2d'),
-      width = sprite.frames * sprite.frameW,
-      height = sprite.frameH,
+      width = sprite.frames.count * sprite.frames.width,
+      height = sprite.frames.height,
       newImg = new Image(),
       i;
 
@@ -125,26 +127,26 @@ Game.prototype = {
       ctx.scale(-1, 1);
     }
 
-    for (i = 0; i < sprite.frames; i++) {
+    for (i = 0; i < sprite.frames.count; i++) {
       ctx.drawImage(
         // Image source
         img,
         // Source X
-        sprite.x + sprite.frameW * (sprite.mirrored ? sprite.frames - i - 1 : i),
+        sprite.x + sprite.frames.width * (sprite.mirrored ? sprite.frames.count - i - 1 : i),
         // Source Y
         sprite.y,
         // Source width
-        sprite.frameW,
+        sprite.frames.width,
         // Source height
-        sprite.frameH,
+        sprite.frames.height,
         // Destination X
-        sprite.frameW * (sprite.mirrored ? i - sprite.frames : i),
+        sprite.frames.width * (sprite.mirrored ? i - sprite.frames.count : i),
         // Destination Y
         0,
         // Destination width
-        sprite.frameW,
+        sprite.frames.width,
         // Destination height
-        sprite.frameH
+        sprite.frames.height
       );
     }
     ctx.restore();
@@ -154,9 +156,7 @@ Game.prototype = {
     // Store the image
     this.sprites[sprite.name] = {
       img: newImg,
-      frames: sprite.frames,
-      frameW: sprite.frameW,
-      frameH: sprite.frameH
+      frames: sprite.frames
     };
 
     debug.groupEnd();
@@ -180,25 +180,25 @@ Game.prototype = {
                 // Image
                 sprite.img,
                 // Source X
-                this.currentFrame * sprite.frameW,
+                this.currentFrame * sprite.frames.width,
                 // Source Y
                 0,
                 // Source width
-                sprite.frameW,
+                sprite.frames.width,
                 // Source height
-                sprite.frameH,
+                sprite.frames.height,
                 // Destination X
                 0,
                 // Destination Y
                 0,
                 // Destination width
-                sprite.frameW,
+                sprite.frames.width,
                 // Destination height
-                sprite.frameH
+                sprite.frames.height
               )
             },
-            x: 0,
-            y: 10 + i * (sprite.frameH),
+            x: 10,
+            y: 10 + i * (sprite.frames.height + 10),
             currentFrame: 0,
             draggable: true
           });
@@ -238,12 +238,14 @@ Game.prototype = {
     for (i = 0; i < spriteNames.length; i++) {
       sprite = this.sprites[spriteNames[i]];
 
-      if (sprite.frames <= 1) {
+      if (sprite.frames.count <= 1) {
         // Nothing to animate here
         continue;
       }
 
-      sprite.shape.x = 150 * Math.sin(frame.time * 2 * Math.PI / 2000) + 150;
+      //sprite.shape.x = 150 * Math.sin(frame.time * 2 * Math.PI / 2000) + 150;
+
+      sprite.shape.currentFrame = Math.floor(frame.time / sprite.frames.time) % sprite.frames.count;
       //sprite.shape.x = 0;
     }
 

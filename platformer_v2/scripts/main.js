@@ -6,10 +6,10 @@ require(["require", "jquery", "game", "config", "lib/kinetic-v3.9.0"], function 
     var Game,
       // Init Kinetic Stage
       stage = new Kinetic.Stage({
-				container: 'canvascontainer',
-				width: config.canvasWidth,
-				height: config.canvasHeight
-			}),
+        container: 'canvascontainer',
+        width: config.canvasWidth,
+        height: config.canvasHeight
+      }),
       // --  Create the layers we need  --
       // background layer, under everything
       bgLayer = new Kinetic.Layer({name: 'background'}),

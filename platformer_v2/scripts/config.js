@@ -14,7 +14,10 @@ define(function configDefine() {
         runRight: {
           x: 0,
           y: 0,
-          frames: 16
+          frames: {
+            count: 16,
+            time: 50
+          }
         },
         runLeft: {
           mirror: "runRight"
@@ -22,7 +25,10 @@ define(function configDefine() {
         hangRight: {
           x: 0,
           y: 1,
-          frames: 10
+          frames: {
+            count: 10,
+            time: 80
+          }
         },
         hangLeft: {
           mirror: "hangRight"
@@ -30,37 +36,54 @@ define(function configDefine() {
         coin: {
           x: 10,
           y: 1,
-          frames: 6
+          frames: {
+            count: 6,
+            time: 150
+          }
         },
         climb: {
           x: 0,
           y: 2,
-          frames: 6
+          frames: {
+            count: 6,
+            time: 80
+          }
         },
         wall: {
           x: 6,
           y: 2,
-          frames: 1
+          frames: {
+            count: 1
+          }
         },
         crumblingWall: {
           x: 6,
           y: 2,
-          frames: 9
+          frames: {
+            count: 9,
+            time: 120
+          }
         },
         ladders: {
           x: 1,
           y: 3,
-          frames: 1
+          frames: {
+            count: 1
+          }
         },
         laddersOff: {
           x: 2,
           y: 3,
-          frames: 1
+          frames: {
+            count: 1
+          }
         },
         rope: {
           x: 3,
           y: 3,
-          frames: 1
+          frames: {
+            count: 1
+          }
         }
       }
     };
