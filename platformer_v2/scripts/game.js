@@ -173,10 +173,33 @@ Game.prototype = {
       // anonymous function to induce scope
       (function () {
         var sprite = self.sprites[spriteNames[i]],
-          shape = new Kinetic.Image({
-            x: 10,
-            y: 10 + i * (sprite.frameH + 10),
-            image: sprite.img,
+          shape = new Kinetic.Shape({
+            drawFunc: function () {
+              var ctx = this.getContext();
+              ctx.drawImage(
+                // Image
+                sprite.img,
+                // Source X
+                this.currentFrame * sprite.frameW,
+                // Source Y
+                0,
+                // Source width
+                sprite.frameW,
+                // Source height
+                sprite.frameH,
+                // Destination X
+                0,
+                // Destination Y
+                0,
+                // Destination width
+                sprite.frameW,
+                // Destination height
+                sprite.frameH
+              )
+            },
+            x: 0,
+            y: 10 + i * (sprite.frameH),
+            currentFrame: 0,
             draggable: true
           });
 
@@ -188,10 +211,42 @@ Game.prototype = {
         });
 
         staticLayer.add(shape);
+
+        // Add the shape to the sprite
+        sprite.shape = shape;
       })();
     }
 
     // Invoke the draw
+    staticLayer.draw();
+
+    // Start animations loop
+    this.stage.onFrame(function (frame) {
+      self.animationDraw(frame);
+    });
+
+    this.stage.start();
+  },
+
+  /** Drawing of animations */
+  animationDraw: function (frame) {
+    var i,
+      staticLayer = this.stage.getChild('static'),
+      spriteNames = Object.keys(this.sprites),
+      sprite;
+
+    for (i = 0; i < spriteNames.length; i++) {
+      sprite = this.sprites[spriteNames[i]];
+
+      if (sprite.frames <= 1) {
+        // Nothing to animate here
+        continue;
+      }
+
+      sprite.shape.x = 150 * Math.sin(frame.time * 2 * Math.PI / 2000) + 150;
+      //sprite.shape.x = 0;
+    }
+
     staticLayer.draw();
   }
 }
