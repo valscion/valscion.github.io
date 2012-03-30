@@ -1,11 +1,15 @@
 // Let's try to load something
-require(["require", "jquery", "game", "config", "lib/kinetic-v3.8.3"], function (require, $, game, config) {
+require(["require", "jquery", "game", "config", "lib/kinetic-v3.9.0"], function (require, $, game, config) {
   // Start running things after the DOM is ready
   $(document).ready(function () {
     // Initialize variables
     var Game,
       // Init Kinetic Stage
-      stage = new Kinetic.Stage('canvascontainer', 800, 600),
+      stage = new Kinetic.Stage({
+				container: 'canvascontainer',
+				width: config.canvasWidth,
+				height: config.canvasHeight
+			}),
       // --  Create the layers we need  --
       // background layer, under everything
       bgLayer = new Kinetic.Layer({name: 'background'}),

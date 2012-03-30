@@ -1,9 +1,9 @@
 /**
- * KineticJS JavaScript Library v3.8.3
+ * KineticJS JavaScript Library v3.9.0
  * http://www.kineticjs.com/
  * Copyright 2012, Eric Rowell
  * Licensed under the MIT or GPL Version 2 licenses.
- * Date: Mar 11 2012
+ * Date: Mar 25 2012
  *
  * Copyright (C) 2011 - 2012 by Eric Rowell
  *
@@ -41,7 +41,6 @@ var Kinetic = {};
 Kinetic.GlobalObject = {
     stages: [],
     idCounter: 0,
-    isAnimating: false,
     frame: {
         time: 0,
         timeDiff: 0,
@@ -64,16 +63,148 @@ Kinetic.GlobalObject = {
     },
     _isaCanvasAnimating: function() {
         for(var n = 0; n < this.stages.length; n++) {
-            if(this.stages[n].isAnimating) {
+            var stage = this.stages[n];
+            if(stage.isAnimating) {
                 return true;
             }
+
+            for(var i = 0; i < stage.children.length; i++) {
+                var layer = stage.children[i];
+                if(layer.transitions.length > 0) {
+                    return true;
+                }
+            }
         }
+
+        this.frame.lastTime = 0;
         return false;
+    },
+    _endTransition: function() {
+        var config = this.config;
+        for(var key in config) {
+            if(config.hasOwnProperty(key)) {
+                if(config[key].x !== undefined || config[key].y !== undefined) {
+                    var propArray = ['x', 'y'];
+                    for(var n = 0; n < propArray.length; n++) {
+                        var prop = propArray[n];
+                        if(config[key][prop] !== undefined) {
+                            this.node[key][prop] = config[key][prop];
+                        }
+                    }
+                }
+                else {
+                    this.node[key] = config[key];
+                }
+            }
+        }
+    },
+    _transitionPow: function(transition, key, prop, powFunc) {
+        var pow = powFunc();
+
+        var config = transition.config;
+        var timeDiff = this.frame.timeDiff;
+        if(prop !== undefined) {
+            var start = transition.starts[key][prop];
+            var change = config[key][prop] - start;
+            var b = change / (Math.pow(config.duration * 1000, pow));
+            transition.node[key][prop] = b * Math.pow(transition.time, pow) + start;
+        }
+        else {
+            var start = transition.starts[key];
+            var change = config[key] - start;
+            var b = change / (Math.pow(config.duration * 1000, pow));
+            transition.node[key] = b * Math.pow(transition.time, pow) + start;
+        }
+    },
+    _chooseTransition: function(transition, key, prop) {
+        var config = transition.config;
+        var that = this;
+        switch(config.easing) {
+            case 'ease-in':
+                this._transitionPow(transition, key, prop, function() {
+                    return 2.5;
+                });
+                break;
+            case 'ease-out':
+                this._transitionPow(transition, key, prop, function() {
+                    return 0.4;
+                });
+                break;
+            case 'ease-in-out':
+                this._transitionPow(transition, key, prop, function() {
+                    var change = -2.1;
+                    var b = change / (config.duration * 1000);
+                    return 2.5 + b * transition.time;
+                });
+                break;
+            // linear is default
+            default:
+                this._transitionPow(transition, key, prop, function() {
+                    return 1;
+                });
+                break;
+        }
+    },
+    _runTransition: function(transition) {
+        var config = transition.config;
+        for(var key in config) {
+            if(config.hasOwnProperty(key) && key !== 'duration' && key !== 'easing' && key !== 'callback') {
+                if(config[key].x !== undefined || config[key].y !== undefined) {
+                    var propArray = ['x', 'y'];
+                    for(var n = 0; n < propArray.length; n++) {
+                        var prop = propArray[n];
+                        if(config[key][prop] !== undefined) {
+                            this._chooseTransition(transition, key, prop);
+                        }
+                    }
+                }
+                else {
+                    this._chooseTransition(transition, key);
+                }
+            }
+        }
+    },
+    _clearTransition: function(node) {
+        var layer = node.getLayer();
+        for(var n = 0; n < layer.transitions.length; n++) {
+            if(layer.transitions[n].node.id === node.id) {
+                layer.transitions.splice(n, 1);
+            }
+        }
     },
     _runFrames: function() {
         for(var n = 0; n < this.stages.length; n++) {
-            if(this.stages[n].isAnimating) {
-                this.stages[n].onFrameFunc(this.frame);
+            var stage = this.stages[n];
+            // run animation if available
+            if(stage.isAnimating && stage.onFrameFunc !== undefined) {
+                stage.onFrameFunc(this.frame);
+            }
+
+            // loop through layers
+            var layers = stage.getChildren();
+            for(var k = 0; k < layers.length; k++) {
+                var layer = layers[k];
+                var didTransition = false;
+                // loop through transitions
+                for(var i = 0; i < layer.transitions.length; i++) {
+                    didTransition = true;
+                    var transition = layer.transitions[i];
+                    transition.time += this.frame.timeDiff;
+                    if(transition.time >= transition.config.duration * 1000) {
+                        this._endTransition.apply(transition);
+                        this._clearTransition(transition.node);
+                        if(transition.config.callback !== undefined) {
+                            transition.config.callback();
+                        }
+                    }
+                    else {
+                        this._runTransition(transition);
+                    }
+                }
+
+                if(didTransition) {
+                    layer.draw();
+                }
             }
         }
     },
@@ -82,14 +213,15 @@ Kinetic.GlobalObject = {
         var time = date.getTime();
         if(this.frame.lastTime === 0) {
             this.frame.lastTime = time;
-        } else {
+        }
+        else {
             this.frame.timeDiff = time - this.frame.lastTime;
             this.frame.lastTime = time;
             this.frame.time += this.frame.timeDiff;
         }
     },
     _animationLoop: function() {
-        if(this.isAnimating) {
+        if(this._isaCanvasAnimating()) {
             this._updateFrameObject();
             this._runFrames();
             var that = this;
@@ -100,12 +232,8 @@ Kinetic.GlobalObject = {
     },
     _handleAnimation: function() {
         var that = this;
-        if(!this.isAnimating && this._isaCanvasAnimating()) {
-            this.isAnimating = true;
+        if(this._isaCanvasAnimating()) {
             that._animationLoop();
-        } else if(this.isAnimating && !this._isaCanvasAnimating()) {
-            this.isAnimating = false;
-            this.frame.lastTime = 0;
         }
     }
 };
@@ -115,7 +243,6 @@ window.requestAnimFrame = (function(callback) {
     function(callback) {
         window.setTimeout(callback, 1000 / 60);
     };
-
 })();
 
 ///////////////////////////////////////////////////////////////////////
@@ -145,29 +272,22 @@ Kinetic.Node = function(config) {
         y: 0
     };
     this.eventListeners = {};
-    this.drag = {
-        x: false,
-        y: false
-    };
+    this.dragConstraint = 'none';
+    this.dragBounds = {};
+    this._draggable = false;
 
     // set properties from config
     if(config) {
         for(var key in config) {
             // handle special keys
             switch (key) {
-                case "draggable":
+                case 'draggable':
                     this.draggable(config[key]);
                     break;
-                case "draggableX":
-                    this.draggableX(config[key]);
-                    break;
-                case "draggableY":
-                    this.draggableY(config[key]);
-                    break;
-                case "listen":
+                case 'listen':
                     this.listen(config[key]);
                     break;
-                case "rotationDeg":
+                case 'rotationDeg':
                     this.rotation = config[key] * Math.PI / 180;
                     break;
                 default:
@@ -194,24 +314,24 @@ Kinetic.Node.prototype = {
      * mouseout, mousedown, mouseup, click, dblclick, touchstart, touchmove,
      * touchend, dbltap, dragstart, dragmove, and dragend.  Pass in a string
      * of event types delimmited by a space to bind multiple events at once
-     * such as "mousedown mouseup mousemove". include a namespace to bind an
-     * event by name such as "click.foobar".
+     * such as 'mousedown mouseup mousemove'. include a namespace to bind an
+     * event by name such as 'click.foobar'.
      * @param {String} typesStr
      * @param {function} handler
      */
     on: function(typesStr, handler) {
-        var types = typesStr.split(" ");
+        var types = typesStr.split(' ');
         /*
          * loop through types and attach event listeners to
-         * each one.  eg. "click mouseover.namespace mouseout"
+         * each one.  eg. 'click mouseover.namespace mouseout'
          * will create three event bindings
          */
         for(var n = 0; n < types.length; n++) {
             var type = types[n];
             var event = (type.indexOf('touch') === -1) ? 'on' + type : type;
-            var parts = event.split(".");
+            var parts = event.split('.');
             var baseEvent = parts[0];
-            var name = parts.length > 1 ? parts[1] : "";
+            var name = parts.length > 1 ? parts[1] : '';
 
             if(!this.eventListeners[baseEvent]) {
                 this.eventListeners[baseEvent] = [];
@@ -226,18 +346,18 @@ Kinetic.Node.prototype = {
     /**
      * remove event bindings from the node.  Pass in a string of
      * event types delimmited by a space to remove multiple event
-     * bindings at once such as "mousedown mouseup mousemove".
+     * bindings at once such as 'mousedown mouseup mousemove'.
      * include a namespace to remove an event binding by name
-     * such as "click.foobar".
+     * such as 'click.foobar'.
      * @param {String} typesStr
      */
     off: function(typesStr) {
-        var types = typesStr.split(" ");
+        var types = typesStr.split(' ');
 
         for(var n = 0; n < types.length; n++) {
             var type = types[n];
             var event = (type.indexOf('touch') === -1) ? 'on' + type : type;
-            var parts = event.split(".");
+            var parts = event.split('.');
             var baseEvent = parts[0];
 
             if(this.eventListeners[baseEvent] && parts.length > 1) {
@@ -252,7 +372,8 @@ Kinetic.Node.prototype = {
                         break;
                     }
                 }
-            } else {
+            }
+            else {
                 this.eventListeners[baseEvent] = undefined;
             }
         }
@@ -285,7 +406,8 @@ Kinetic.Node.prototype = {
         if(scaleY) {
             this.scale.x = scaleX;
             this.scale.y = scaleY;
-        } else {
+        }
+        else {
             this.scale.x = scaleX;
             this.scale.y = scaleX;
         }
@@ -318,18 +440,7 @@ Kinetic.Node.prototype = {
      * get absolute position relative to stage
      */
     getAbsolutePosition: function() {
-        var x = this.x;
-        var y = this.y;
-        var parent = this.getParent();
-        while(parent.className !== "Stage") {
-            x += parent.x;
-            y += parent.y;
-            parent = parent.parent;
-        }
-        return {
-            x: x,
-            y: y
-        };
+        return this.getAbsoluteTransform().getTranslation();
     },
     /**
      * move node by an amount
@@ -427,7 +538,7 @@ Kinetic.Node.prototype = {
     },
     /**
      * set zIndex
-     * @param {int} index
+     * @param {int} zIndex
      */
     setZIndex: function(zIndex) {
         var index = this.index;
@@ -459,7 +570,7 @@ Kinetic.Node.prototype = {
         var absAlpha = 1;
         var node = this;
         // traverse upwards
-        while(node.className !== "Stage") {
+        while(node.className !== 'Stage') {
             absAlpha *= node.alpha;
             node = node.parent;
         }
@@ -467,53 +578,17 @@ Kinetic.Node.prototype = {
     },
     /**
      * enable or disable drag and drop
-     * @param {Boolean} setDraggable
+     * @param {Boolean} isDraggable
      */
-    draggable: function(setDraggable) {
-        if(setDraggable) {
-            var needInit = !this.drag.x && !this.drag.y;
-            this.drag.x = true;
-            this.drag.y = true;
-
-            if(needInit) {
+    draggable: function(isDraggable) {
+        if(this.draggable !== isDraggable) {
+            if(isDraggable) {
                 this._initDrag();
             }
-        } else {
-            this.drag.x = false;
-            this.drag.y = false;
-            this._dragCleanup();
-        }
-    },
-    /**
-     * enable or disable horizontal drag and drop
-     * @param {Boolean} setDraggable
-     */
-    draggableX: function(setDraggable) {
-        if(setDraggable) {
-            var needInit = !this.drag.x && !this.drag.y;
-            this.drag.x = true;
-            if(needInit) {
-                this._initDrag();
+            else {
+                this._dragCleanup();
             }
-        } else {
-            this.drag.x = false;
-            this._dragCleanup();
-        }
-    },
-    /**
-     * enable or disable vertical drag and drop
-     * @param {Boolean} setDraggable
-     */
-    draggableY: function(setDraggable) {
-        if(setDraggable) {
-            var needInit = !this.drag.x && !this.drag.y;
-            this.drag.y = true;
-            if(needInit) {
-                this._initDrag();
-            }
-        } else {
-            this.drag.y = false;
-            this._dragCleanup();
+            this._draggable = isDraggable;
         }
     },
     /**
@@ -525,7 +600,7 @@ Kinetic.Node.prototype = {
     },
     /**
      * move node to another container
-     * @param {Layer} newLayer
+     * @param {Container} newContainer
      */
     moveTo: function(newContainer) {
         var parent = this.parent;
@@ -557,7 +632,8 @@ Kinetic.Node.prototype = {
     getLayer: function() {
         if(this.className === 'Layer') {
             return this;
-        } else {
+        }
+        else {
             return this.getParent().getLayer();
         }
     },
@@ -565,7 +641,12 @@ Kinetic.Node.prototype = {
      * get stage associated to node
      */
     getStage: function() {
-        return this.getParent().getStage();
+        if(this.className === 'Stage') {
+            return this;
+        }
+        else {
+            return this.getParent().getStage();
+        }
     },
     /**
      * get name
@@ -589,19 +670,150 @@ Kinetic.Node.prototype = {
         return this.centerOffset;
     },
     /**
+     * transition node to another state.  Any property that can accept a real
+     *  number can be transitioned, including x, y, rotation, alpha, strokeWidth,
+     *  radius, scale.x, scale.y, centerOffset.x, centerOffset.y, etc.
+     * @param {Object} config
+     * @config {Number} [duration] duration that the transition runs in seconds
+     * @config {String} [easing] easing function.  can be linear, ease-in, ease-out, or ease-in-out.
+     *  linear is the default
+     * @config {Function} [callback] callback function to be executed when
+     *  transition completes
+     */
+    transitionTo: function(config) {
+        var layer = this.getLayer();
+        var that = this;
+        var duration = config.duration * 1000;
+        var starts = {};
+
+        /*
+         * clear transition if one is currenlty running.
+         * This make it easy to start new transitions without
+         * having to explicitly cancel old ones
+         */
+        Kinetic.GlobalObject._clearTransition(this);
+
+        for(var key in config) {
+            if(config.hasOwnProperty(key) && key !== 'duration' && key !== 'easing' && key !== 'callback') {
+                if(config[key].x !== undefined || config[key].y !== undefined) {
+                    starts[key] = {};
+                    var propArray = ['x', 'y'];
+                    for(var n = 0; n < propArray.length; n++) {
+                        var prop = propArray[n];
+                        if(config[key][prop] !== undefined) {
+                            starts[key][prop] = this[key][prop];
+                        }
+                    }
+                }
+                else {
+                    starts[key] = this[key];
+                }
+            }
+        }
+
+        layer.transitions.push({
+            id: layer.transitionIdCounter++,
+            time: 0,
+            config: config,
+            node: this,
+            starts: starts
+        });
+
+        Kinetic.GlobalObject._handleAnimation();
+    },
+    /**
+     * set drag constraint
+     * @param {String} constraint
+     */
+    setDragConstraint: function(constraint) {
+        this.dragConstraint = constraint;
+    },
+    /**
+     * get drag constraint
+     */
+    getDragConstraint: function() {
+        return this.dragConstraint;
+    },
+    /**
+     * set drag bounds
+     * @param {Object} bounds
+     * @config {Number} [left] left bounds position
+     * @config {Number} [top] top bounds position
+     * @config {Number} [right] right bounds position
+     * @config {Number} [bottom] bottom bounds position
+     */
+    setDragBounds: function(bounds) {
+        this.dragBounds = bounds;
+    },
+    /**
+     * get drag bounds
+     */
+    getDragBounds: function() {
+        return this.dragBounds;
+    },
+    /**
+     * get transform of the node while taking into
+     * account the transforms of its parents
+     */
+    getAbsoluteTransform: function() {
+        // absolute transform
+        var am = new Kinetic.Transform();
+
+        var family = [];
+        var parent = this.parent;
+
+        family.unshift(this);
+        while(parent) {
+            family.unshift(parent);
+            parent = parent.parent;
+        }
+
+        for(var n = 0; n < family.length; n++) {
+            var node = family[n];
+            var m = node.getTransform();
+            am.multiply(m);
+        }
+
+        return am;
+    },
+    /**
+     * get transform of the node while not taking
+     * into account the transforms of its parents
+     */
+    getTransform: function() {
+        var m = new Kinetic.Transform();
+
+        if(this.x !== 0 || this.y !== 0) {
+            m.translate(this.x, this.y);
+        }
+        if(this.rotation !== 0) {
+            m.rotate(this.rotation);
+        }
+        if(this.scale.x !== 1 || this.scale.y !== 1) {
+            m.scale(this.scale.x, this.scale.y);
+        }
+        if(this.centerOffset.x !== 0 || this.centerOffset.y !== 0) {
+            m.translate(-1 * this.centerOffset.x, -1 * this.centerOffset.y);
+        }
+
+        return m;
+    },
+    /**
      * initialize drag and drop
      */
     _initDrag: function() {
         var go = Kinetic.GlobalObject;
         var that = this;
-        this.on("mousedown.initdrag touchstart.initdrag", function(evt) {
+        this.on('mousedown.initdrag touchstart.initdrag', function(evt) {
             var stage = that.getStage();
             var pos = stage.getUserPosition();
 
             if(pos) {
+                var m = that.getTransform().getTranslation();
+                var am = that.getAbsoluteTransform().getTranslation();
                 go.drag.node = that;
-                go.drag.offset.x = pos.x - that.x;
-                go.drag.offset.y = pos.y - that.y;
+                go.drag.offset.x = pos.x - that.getAbsoluteTransform().getTranslation().x;
+                go.drag.offset.y = pos.y - that.getAbsoluteTransform().getTranslation().y;
             }
         });
     },
@@ -609,10 +821,8 @@ Kinetic.Node.prototype = {
      * remove drag and drop event listener
      */
     _dragCleanup: function() {
-        if(!this.drag.x && !this.drag.y) {
-            this.off("mousedown.initdrag");
-            this.off("touchstart.initdrag");
-        }
+        this.off('mousedown.initdrag');
+        this.off('touchstart.initdrag');
     },
     /**
      * handle node events
@@ -620,29 +830,47 @@ Kinetic.Node.prototype = {
      * @param {Event} evt
      */
     _handleEvents: function(eventType, evt) {
-        // generic events handler
-        function handle(obj) {
-            var el = obj.eventListeners;
-            if(el[eventType]) {
-                var events = el[eventType];
-                for(var i = 0; i < events.length; i++) {
-                    events[i].handler.apply(obj, [evt]);
-                }
-            }
+        if(this.className === 'Shape') {
+            evt.shape = this;
+        }
+        var stage = this.getStage();
+        this._handleEvent(this, stage.mouseoverShape, stage.mouseoutShape, eventType, evt);
+    },
+    /**
+     * handle node event
+     */
+    _handleEvent: function(node, mouseoverNode, mouseoutNode, eventType, evt) {
+        var el = node.eventListeners;
+        var okayToRun = true;
 
-            if(obj.parent.className !== "Stage") {
-                handle(obj.parent);
+        /*
+         * determine if event handler should be skipped by comparing
+         * parent nodes
+         */
+        if(eventType === 'onmouseover' && mouseoutNode && mouseoutNode.id === node.id) {
+            okayToRun = false;
+        }
+        else if(eventType === 'onmouseout' && mouseoverNode && mouseoverNode.id === node.id) {
+            okayToRun = false;
+        }
+
+        if(el[eventType] && okayToRun) {
+            var events = el[eventType];
+            for(var i = 0; i < events.length; i++) {
+                events[i].handler.apply(node, [evt]);
             }
         }
 
-        /*
-         * simulate bubbling by handling node events
-         * first, followed by group events, followed
-         * by layer events
-         */
-        handle(this);
+        var mouseoverParent = mouseoverNode ? mouseoverNode.parent : undefined;
+        var mouseoutParent = mouseoutNode ? mouseoutNode.parent : undefined;
+
+        // simulate event bubbling
+        if(!evt.cancelBubble && node.parent.className !== 'Stage') {
+            this._handleEvent(node.parent, mouseoverParent, mouseoutParent, eventType, evt);
+        }
     }
 };
+
 ///////////////////////////////////////////////////////////////////////
 //  Container
 ///////////////////////////////////////////////////////////////////////
@@ -699,9 +927,10 @@ Kinetic.Container.prototype = {
         var children = this.children;
         for(var n = 0; n < children.length; n++) {
             var child = children[n];
-            if(child.className === "Shape") {
+            if(child.className === 'Shape') {
                 child._draw(child.getLayer());
-            } else {
+            }
+            else {
                 child._draw();
             }
         }
@@ -729,25 +958,26 @@ Kinetic.Container.prototype = {
          * from the container except the buffer and backstage canvases
          * and then readd all the layers
          */
-        if(this.className === "Stage") {
-            var canvases = this.container.children;
+        if(this.className === 'Stage') {
+            var canvases = this.content.children;
             var bufferCanvas = canvases[0];
             var backstageCanvas = canvases[1];
 
-            this.container.innerHTML = "";
-            this.container.appendChild(bufferCanvas);
-            this.container.appendChild(backstageCanvas);
+            this.content.innerHTML = '';
+            this.content.appendChild(bufferCanvas);
+            this.content.appendChild(backstageCanvas);
         }
 
         for(var n = 0; n < this.children.length; n++) {
             this.children[n].index = n;
 
-            if(this.className === "Stage") {
-                this.container.appendChild(this.children[n].canvas);
+            if(this.className === 'Stage') {
+                this.content.appendChild(this.children[n].canvas);
             }
         }
     }
 };
+
 ///////////////////////////////////////////////////////////////////////
 //  Stage
 ///////////////////////////////////////////////////////////////////////
@@ -755,23 +985,37 @@ Kinetic.Container.prototype = {
  * Stage constructor.  A stage is used to contain multiple layers and handle
  * animations
  * @constructor
+ * @augments Kinetic.Container
+ * @augments Kinetic.Node
  * @param {String|DomElement} cont Container id or DOM element
  * @param {int} width
  * @param {int} height
  */
-Kinetic.Stage = function(cont, width, height) {
-    this.className = "Stage";
-    this.container = typeof cont === "string" ? document.getElementById(cont) : cont;
-    this.width = width;
-    this.height = height;
+Kinetic.Stage = function(config) {
+    /*
+     * if container is a string, assume it's an id for
+     * a DOM element
+     */
+    if( typeof config.container === 'string') {
+        config.container = document.getElementById(config.container);
+    }
+
+    this.className = 'Stage';
+    this.container = config.container;
+    this.content = document.createElement('div');
+
+    this.width = config.width;
+    this.height = config.height;
     this.scale = {
         x: 1,
         y: 1
     };
     this.dblClickWindow = 400;
-    this.targetShape = undefined;
     this.clickStart = false;
+    this.targetShape = undefined;
     this.targetFound = false;
+    this.mouseoverShape = undefined;
+    this.mouseoutShape = undefined;
 
     // desktop flags
     this.mousePos = undefined;
@@ -783,43 +1027,6 @@ Kinetic.Stage = function(cont, width, height) {
     this.touchStart = false;
     this.touchEnd = false;
 
-    /*
-     * Layer roles
-     *
-     * buffer - canvas compositing
-     * backstage - path detection
-     */
-    this.bufferLayer = new Kinetic.Layer();
-    this.backstageLayer = new Kinetic.Layer();
-
-    // set parents
-    this.bufferLayer.parent = this;
-    this.backstageLayer.parent = this;
-
-    // customize back stage context
-    var backstageLayer = this.backstageLayer;
-    this._stripLayer(backstageLayer);
-
-    this.bufferLayer.getCanvas().style.display = 'none';
-    this.backstageLayer.getCanvas().style.display = 'none';
-
-    // add buffer layer
-    this.bufferLayer.canvas.width = this.width;
-    this.bufferLayer.canvas.height = this.height;
-    this.container.appendChild(this.bufferLayer.canvas);
-
-    // add backstage layer
-    this.backstageLayer.canvas.width = this.width;
-    this.backstageLayer.canvas.height = this.height;
-    this.container.appendChild(this.backstageLayer.canvas);
-
-    this._listen();
-    this._prepareDrag();
-
-    // add stage to global object
-    var stages = Kinetic.GlobalObject.stages;
-    stages.push(this);
-
     // set stage id
     this.id = Kinetic.GlobalObject.idCounter++;
 
@@ -827,8 +1034,16 @@ Kinetic.Stage = function(cont, width, height) {
     this.isAnimating = false;
     this.onFrameFunc = undefined;
 
-    // call super constructor
+    this._buildDOM();
+    this._listen();
+    this._prepareDrag();
+
+    // add stage to global object
+    Kinetic.GlobalObject.stages.push(this);
+
+    // call super constructors
     Kinetic.Container.apply(this, []);
+    Kinetic.Node.apply(this, [config]);
 };
 /*
  * Stage methods
@@ -886,48 +1101,6 @@ Kinetic.Stage.prototype = {
         this.backstageLayer.getCanvas().height = height;
     },
     /**
-     * set stage scale.  If only one parameter is passed in, then
-     * both scaleX and scaleY are set to the parameter
-     * @param {int} scaleX
-     * @param {int} scaleY
-     */
-    setScale: function(scaleX, scaleY) {
-        var oldScaleX = this.scale.x;
-        var oldScaleY = this.scale.y;
-
-        if(scaleY) {
-            this.scale.x = scaleX;
-            this.scale.y = scaleY;
-        } else {
-            this.scale.x = scaleX;
-            this.scale.y = scaleX;
-        }
-
-        /*
-         * scale all shape positions
-         */
-        var layers = this.children;
-        var that = this;
-        function scaleChildren(children) {
-            for(var i = 0; i < children.length; i++) {
-                var child = children[i];
-                child.x *= that.scale.x / oldScaleX;
-                child.y *= that.scale.y / oldScaleY;
-                if(child.children) {
-                    scaleChildren(child.children);
-                }
-            }
-        }
-
-        scaleChildren(layers);
-    },
-    /**
-     * get scale
-     */
-    getScale: function() {
-        return this.scale;
-    },
-    /**
      * clear all layers
      */
     clear: function() {
@@ -937,10 +1110,14 @@ Kinetic.Stage.prototype = {
         }
     },
     /**
-     * creates a composite data URL and passes it to a callback
+     * Creates a composite data URL and passes it to a callback. If MIME type is not
+     * specified, then "image/png" will result. For "image/jpeg", specify a quality
+     * level as quality (range 0.0 - 1.0)
      * @param {function} callback
+     * @param {String} mimeType (optional)
+     * @param {Number} quality (optional)
      */
-    toDataURL: function(callback) {
+    toDataURL: function(callback, mimeType, quality) {
         var bufferLayer = this.bufferLayer;
         var bufferContext = bufferLayer.getContext();
         var layers = this.children;
@@ -953,13 +1130,13 @@ Kinetic.Stage.prototype = {
                 n++;
                 if(n < layers.length) {
                     addLayer(n);
-                } else {
-                    callback(bufferLayer.getCanvas().toDataURL());
+                }
+                else {
+                    callback(bufferLayer.getCanvas().toDataURL(mimeType, quality));
                 }
             };
             imageObj.src = dataURL;
         }
-
 
         bufferLayer.clear();
         addLayer(0);
@@ -970,18 +1147,16 @@ Kinetic.Stage.prototype = {
      */
     remove: function(layer) {
         // remove layer canvas from dom
-        this.container.removeChild(layer.canvas);
-
+        this.content.removeChild(layer.canvas);
         this._remove(layer);
     },
     /**
-     * bind event listener to stage (which is essentially
-     * the container DOM)
+     * bind event listener to container DOM element
      * @param {String} typesStr
      * @param {function} handler
      */
-    on: function(typesStr, handler) {
-        var types = typesStr.split(" ");
+    onContainer: function(typesStr, handler) {
+        var types = typesStr.split(' ');
         for(var n = 0; n < types.length; n++) {
             var baseEvent = types[n];
             this.container.addEventListener(baseEvent, handler, false);
@@ -1001,7 +1176,7 @@ Kinetic.Stage.prototype = {
 
         // draw layer and append canvas to container
         layer.draw();
-        this.container.appendChild(layer.canvas);
+        this.content.appendChild(layer.canvas);
     },
     /**
      * get mouse position for desktop apps
@@ -1059,13 +1234,13 @@ Kinetic.Stage.prototype = {
             if(!isDragging && this.mouseDown) {
                 this.mouseDown = false;
                 this.clickStart = true;
-                shape._handleEvents("onmousedown", evt);
+                shape._handleEvents('onmousedown', evt);
                 return true;
             }
             // handle onmouseup & onclick
             else if(this.mouseUp) {
                 this.mouseUp = false;
-                shape._handleEvents("onmouseup", evt);
+                shape._handleEvents('onmouseup', evt);
 
                 // detect if click or double click occurred
                 if(this.clickStart) {
@@ -1074,10 +1249,10 @@ Kinetic.Stage.prototype = {
                      * event
                      */
                     if((!go.drag.moving) || !go.drag.node) {
-                        shape._handleEvents("onclick", evt);
+                        shape._handleEvents('onclick', evt);
 
                         if(shape.inDoubleClickWindow) {
-                            shape._handleEvents("ondblclick", evt);
+                            shape._handleEvents('ondblclick', evt);
                         }
                         shape.inDoubleClickWindow = true;
                         setTimeout(function() {
@@ -1091,7 +1266,7 @@ Kinetic.Stage.prototype = {
             // handle touchstart
             else if(this.touchStart) {
                 this.touchStart = false;
-                shape._handleEvents("touchstart", evt);
+                shape._handleEvents('touchstart', evt);
 
                 if(el.ondbltap && shape.inDoubleClickWindow) {
                     var events = el.ondbltap;
@@ -1111,51 +1286,77 @@ Kinetic.Stage.prototype = {
             // handle touchend
             else if(this.touchEnd) {
                 this.touchEnd = false;
-                shape._handleEvents("touchend", evt);
+                shape._handleEvents('touchend', evt);
                 return true;
             }
 
-            // handle touchmove
-            else if(!isDragging && el.touchmove) {
-                shape._handleEvents("touchmove", evt);
-                return true;
-            }
+            /*
+            * NOTE: these event handlers require target shape
+            * handling
+            */
 
-            //this condition is used to identify a new target shape.
-            else if(!isDragging && (!this.targetShape || (!this.targetFound && shape.id !== this.targetShape.id))) {
+            // handle onmouseover
+            else if(!isDragging && this._isNewTarget(shape, evt)) {
                 /*
-                 * check if old target has an onmouseout event listener
+                 * check to see if there are stored mouseout events first.
+                 * if there are, run those before running the onmouseover
+                 * events
                  */
-                if(this.targetShape) {
-                    var oldEl = this.targetShape.eventListeners;
-                    if(oldEl) {
-                        this.targetShape._handleEvents("onmouseout", evt);
-                    }
+                if(this.mouseoutShape) {
+                    this.mouseoverShape = shape;
+                    this.mouseoutShape._handleEvents('onmouseout', evt);
+                    this.mouseoverShape = undefined;
                 }
 
-                // set new target shape
-                this.targetShape = shape;
-                this.targetFound = true;
-
-                // handle onmouseover
-                shape._handleEvents("onmouseover", evt);
+                shape._handleEvents('onmouseover', evt);
+                this._setTarget(shape);
                 return true;
             }
 
-            // handle onmousemove
+            // handle mousemove and touchmove
             else if(!isDragging) {
-                shape._handleEvents("onmousemove", evt);
+                shape._handleEvents('onmousemove', evt);
+                shape._handleEvents('touchmove', evt);
                 return true;
             }
         }
         // handle mouseout condition
         else if(!isDragging && this.targetShape && this.targetShape.id === shape.id) {
-            this.targetShape = undefined;
-            shape._handleEvents("onmouseout", evt);
+            this._setTarget(undefined);
+            this.mouseoutShape = shape;
+            //shape._handleEvents('onmouseout', evt);
             return true;
         }
 
         return false;
+    },
+    /**
+     * set new target
+     */
+    _setTarget: function(shape) {
+        this.targetShape = shape;
+        this.targetFound = true;
+    },
+    /**
+     * check if shape should be a new target
+     */
+    _isNewTarget: function(shape, evt) {
+        if(!this.targetShape || (!this.targetFound && shape.id !== this.targetShape.id)) {
+            /*
+             * check if old target has an onmouseout event listener
+             */
+            if(this.targetShape) {
+                var oldEl = this.targetShape.eventListeners;
+                if(oldEl) {
+                    this.mouseoutShape = this.targetShape;
+                    //this.targetShape._handleEvents('onmouseout', evt);
+                }
+            }
+            return true;
+        }
+        else {
+            return false;
+        }
     },
     /**
      * traverse container children
@@ -1166,13 +1367,19 @@ Kinetic.Stage.prototype = {
         // propapgate backwards through children
         for(var i = children.length - 1; i >= 0; i--) {
             var child = children[i];
-            if(child.className === "Shape") {
-                var exit = this._detectEvent(child, evt);
-                if(exit) {
-                    return true;
+            if(child.isListening) {
+                if(child.className === 'Shape') {
+                    var exit = this._detectEvent(child, evt);
+                    if(exit) {
+                        return true;
+                    }
                 }
-            } else {
-                this._traverseChildren(child);
+                else {
+                    var exit = this._traverseChildren(child, evt);
+                    if(exit) {
+                        return true;
+                    }
+                }
             }
         }
 
@@ -1182,7 +1389,7 @@ Kinetic.Stage.prototype = {
      * handle incoming event
      * @param {Event} evt
      */
-    _handleEvent: function(evt) {
+    _handleStageEvent: function(evt) {
         var go = Kinetic.GlobalObject;
         if(!evt) {
             evt = window.event;
@@ -1200,14 +1407,25 @@ Kinetic.Stage.prototype = {
          * three nested loops
          */
         this.targetFound = false;
-
+        var shapeDetected = false;
         for(var n = this.children.length - 1; n >= 0; n--) {
             var layer = this.children[n];
             if(layer.visible && n >= 0 && layer.isListening) {
                 if(this._traverseChildren(layer, evt)) {
                     n = -1;
+                    shapeDetected = true;
                 }
             }
+        }
+
+        /*
+         * if no shape was detected and a mouseout shape has been stored,
+         * then run the onmouseout event handlers
+         */
+        if(!shapeDetected && this.mouseoutShape) {
+            this.mouseoutShape._handleEvents('onmouseout', evt);
+            this.mouseoutShape = undefined;
+
         }
     },
     /**
@@ -1218,48 +1436,48 @@ Kinetic.Stage.prototype = {
         var that = this;
 
         // desktop events
-        this.container.addEventListener("mousedown", function(evt) {
+        this.container.addEventListener('mousedown', function(evt) {
             that.mouseDown = true;
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
         }, false);
 
-        this.container.addEventListener("mousemove", function(evt) {
+        this.container.addEventListener('mousemove', function(evt) {
             that.mouseUp = false;
             that.mouseDown = false;
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
         }, false);
 
-        this.container.addEventListener("mouseup", function(evt) {
+        this.container.addEventListener('mouseup', function(evt) {
             that.mouseUp = true;
             that.mouseDown = false;
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
 
             that.clickStart = false;
         }, false);
 
-        this.container.addEventListener("mouseover", function(evt) {
-            that._handleEvent(evt);
+        this.container.addEventListener('mouseover', function(evt) {
+            that._handleStageEvent(evt);
         }, false);
 
-        this.container.addEventListener("mouseout", function(evt) {
+        this.container.addEventListener('mouseout', function(evt) {
             that.mousePos = undefined;
         }, false);
         // mobile events
-        this.container.addEventListener("touchstart", function(evt) {
+        this.container.addEventListener('touchstart', function(evt) {
             evt.preventDefault();
             that.touchStart = true;
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
         }, false);
 
-        this.container.addEventListener("touchmove", function(evt) {
+        this.container.addEventListener('touchmove', function(evt) {
             evt.preventDefault();
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
         }, false);
 
-        this.container.addEventListener("touchend", function(evt) {
+        this.container.addEventListener('touchend', function(evt) {
             evt.preventDefault();
             that.touchEnd = true;
-            that._handleEvent(evt);
+            that._handleStageEvent(evt);
         }, false);
     },
     /**
@@ -1267,8 +1485,8 @@ Kinetic.Stage.prototype = {
      * @param {Event} evt
      */
     _setMousePosition: function(evt) {
-        var mouseX = evt.clientX - this._getContainerPosition().left + window.pageXOffset;
-        var mouseY = evt.clientY - this._getContainerPosition().top + window.pageYOffset;
+        var mouseX = evt.offsetX || (evt.clientX - this._getContainerPosition().left + window.pageXOffset);
+        var mouseY = evt.offsetY || (evt.clientY - this._getContainerPosition().top + window.pageYOffset);
         this.mousePos = {
             x: mouseX,
             y: mouseY
@@ -1299,9 +1517,9 @@ Kinetic.Stage.prototype = {
         var obj = this.container;
         var top = 0;
         var left = 0;
-        while(obj && obj.tagName !== "BODY") {
-            top += obj.offsetTop;
-            left += obj.offsetLeft;
+        while(obj && obj.tagName !== 'BODY') {
+            top += obj.offsetTop - obj.scrollTop;
+            left += obj.offsetLeft - obj.scrollLeft;
             obj = obj.offsetParent;
         }
         return {
@@ -1339,7 +1557,7 @@ Kinetic.Stage.prototype = {
         if(go.drag.node) {
             if(go.drag.moving) {
                 go.drag.moving = false;
-                go.drag.node._handleEvents("ondragend", evt);
+                go.drag.node._handleEvents('ondragend', evt);
             }
         }
         go.drag.node = undefined;
@@ -1350,35 +1568,128 @@ Kinetic.Stage.prototype = {
     _prepareDrag: function() {
         var that = this;
 
-        this.on("mousemove touchmove", function(evt) {
+        this.onContainer('mousemove touchmove', function(evt) {
             var go = Kinetic.GlobalObject;
-            if(go.drag.node) {
+            var node = go.drag.node;
+            if(node) {
                 var pos = that.getUserPosition();
-                if(go.drag.node.drag.x) {
-                    go.drag.node.x = pos.x - go.drag.offset.x;
+                var dc = node.dragConstraint;
+                var db = node.dragBounds;
+
+                // default
+                var newNodePos = {
+                    x: pos.x - go.drag.offset.x,
+                    y: pos.y - go.drag.offset.y
+                };
+
+                // bounds overrides
+                if(db.left !== undefined && newNodePos.x < db.left) {
+                    newNodePos.x = db.left;
                 }
-                if(go.drag.node.drag.y) {
-                    go.drag.node.y = pos.y - go.drag.offset.y;
+                if(db.right !== undefined && newNodePos.x > db.right) {
+                    newNodePos.x = db.right;
                 }
+                if(db.top !== undefined && newNodePos.y < db.top) {
+                    newNodePos.y = db.top;
+                }
+                if(db.bottom !== undefined && newNodePos.y > db.bottom) {
+                    newNodePos.y = db.bottom;
+                }
+
+                // constraint overrides
+                if(dc === 'horizontal') {
+                    newNodePos.y = node.y;
+                }
+                else if(dc === 'vertical') {
+                    newNodePos.x = node.x;
+                }
+
+                /*
+                 * save rotation and scale and then
+                 * remove them from the transform
+                 */
+                var rot = node.rotation;
+                var scale = {
+                    x: node.scale.x,
+                    y: node.scale.y
+                };
+                node.rotation = 0;
+                node.scale = {
+                    x: 1,
+                    y: 1
+                };
+
+                // unravel transform
+                var it = node.getAbsoluteTransform();
+                it.invert();
+                it.translate(newNodePos.x, newNodePos.y);
+
+                node.x += it.getTranslation().x;
+                node.y += it.getTranslation().y;
+
+                // restore rotation and scale
+                node.rotate(rot);
+                node.scale = {
+                    x: scale.x,
+                    y: scale.y
+                };
+
                 go.drag.node.getLayer().draw();
 
                 if(!go.drag.moving) {
                     go.drag.moving = true;
                     // execute dragstart events if defined
-                    go.drag.node._handleEvents("ondragstart", evt);
+                    go.drag.node._handleEvents('ondragstart', evt);
                 }
+
                 // execute user defined ondragmove if defined
-                go.drag.node._handleEvents("ondragmove", evt);
+                go.drag.node._handleEvents('ondragmove', evt);
             }
         }, false);
 
-        this.on("mouseup touchend mouseout", function(evt) {
+        this.onContainer('mouseup touchend mouseout', function(evt) {
             that._endDrag(evt);
         });
+    },
+    /**
+     * build dom
+     */
+    _buildDOM: function() {
+        // content
+        this.content.style.width = this.width + 'px';
+        this.content.style.height = this.height + 'px';
+        this.content.style.position = 'relative';
+        this.content.style.display = 'inline-block';
+        this.content.className = 'kineticjs-content';
+        this.container.appendChild(this.content);
+
+        // default layers
+        this.bufferLayer = new Kinetic.Layer();
+        this.backstageLayer = new Kinetic.Layer();
+
+        // set parents
+        this.bufferLayer.parent = this;
+        this.backstageLayer.parent = this;
+
+        // customize back stage context
+        this._stripLayer(this.backstageLayer);
+        this.bufferLayer.getCanvas().style.display = 'none';
+        this.backstageLayer.getCanvas().style.display = 'none';
+
+        // add buffer layer
+        this.bufferLayer.canvas.width = this.width;
+        this.bufferLayer.canvas.height = this.height;
+        this.content.appendChild(this.bufferLayer.canvas);
+
+        // add backstage layer
+        this.backstageLayer.canvas.width = this.width;
+        this.backstageLayer.canvas.height = this.height;
+        this.content.appendChild(this.backstageLayer.canvas);
     }
 };
-// extend Container
+// Extend Container and Node
 Kinetic.GlobalObject.extend(Kinetic.Stage, Kinetic.Container);
+Kinetic.GlobalObject.extend(Kinetic.Stage, Kinetic.Node);
 
 ///////////////////////////////////////////////////////////////////////
 //  Layer
@@ -1392,10 +1703,12 @@ Kinetic.GlobalObject.extend(Kinetic.Stage, Kinetic.Container);
  * @param {Object} config
  */
 Kinetic.Layer = function(config) {
-    this.className = "Layer";
+    this.className = 'Layer';
     this.canvas = document.createElement('canvas');
     this.context = this.canvas.getContext('2d');
     this.canvas.style.position = 'absolute';
+    this.transitions = [];
+    this.transitionIdCounter = 0;
 
     // call super constructors
     Kinetic.Container.apply(this, []);
@@ -1406,13 +1719,17 @@ Kinetic.Layer = function(config) {
  */
 Kinetic.Layer.prototype = {
     /**
-     * public draw children
+     * draw children nodes.  this includes any groups
+     *  or shapes
      */
     draw: function() {
         this._draw();
     },
     /**
-     * clear layer
+     * clears the canvas context tied to the layer.  Clearing
+     *  a layer does not remove its children.  The nodes within
+     *  the layer will be redrawn whenever the .draw() method
+     *  is used again.
      */
     clear: function() {
         var context = this.getContext();
@@ -1432,7 +1749,8 @@ Kinetic.Layer.prototype = {
         return this.context;
     },
     /**
-     * add node to layer
+     * add a node to the layer.  New nodes are always
+     * placed at the top.
      * @param {Node} node
      */
     add: function(child) {
@@ -1458,6 +1776,7 @@ Kinetic.Layer.prototype = {
 // Extend Container and Node
 Kinetic.GlobalObject.extend(Kinetic.Layer, Kinetic.Container);
 Kinetic.GlobalObject.extend(Kinetic.Layer, Kinetic.Node);
+
 ///////////////////////////////////////////////////////////////////////
 //  Group
 ///////////////////////////////////////////////////////////////////////
@@ -1470,7 +1789,7 @@ Kinetic.GlobalObject.extend(Kinetic.Layer, Kinetic.Node);
  * @param {Object} config
  */
 Kinetic.Group = function(config) {
-    this.className = "Group";
+    this.className = 'Group';
 
     // call super constructors
     Kinetic.Container.apply(this, []);
@@ -1507,6 +1826,7 @@ Kinetic.Group.prototype = {
 // Extend Container and Node
 Kinetic.GlobalObject.extend(Kinetic.Group, Kinetic.Container);
 Kinetic.GlobalObject.extend(Kinetic.Group, Kinetic.Node);
+
 ///////////////////////////////////////////////////////////////////////
 //  Shape
 ///////////////////////////////////////////////////////////////////////
@@ -1518,13 +1838,14 @@ Kinetic.GlobalObject.extend(Kinetic.Group, Kinetic.Node);
  * @param {Object} config
  */
 Kinetic.Shape = function(config) {
-    this.className = "Shape";
+    this.className = 'Shape';
 
     // defaults
     if(config.stroke !== undefined || config.strokeWidth !== undefined) {
         if(config.stroke === undefined) {
-            config.stroke = "black";
-        } else if(config.strokeWidth === undefined) {
+            config.stroke = 'black';
+        }
+        else if(config.strokeWidth === undefined) {
             config.strokeWidth = 2;
         }
     }
@@ -1620,56 +1941,27 @@ Kinetic.Shape.prototype = {
         if(this.visible) {
             var stage = layer.getStage();
             var context = layer.getContext();
-
             var family = [];
+            var parent = this.parent;
 
             family.unshift(this);
-            var parent = this.parent;
-            while(parent.className !== "Stage") {
+            while(parent) {
                 family.unshift(parent);
                 parent = parent.parent;
             }
 
-            // children transforms
-            for(var n = 0; n < family.length; n++) {
-                var obj = family[n];
-
-                context.save();
-                if(obj.x !== 0 || obj.y !== 0) {
-                    context.translate(obj.x, obj.y);
-                }
-                if(obj.centerOffset.x !== 0 || obj.centerOffset.y !== 0) {
-                    context.translate(obj.centerOffset.x, obj.centerOffset.y);
-                }
-                if(obj.rotation !== 0) {
-                    context.rotate(obj.rotation);
-                }
-                if(obj.scale.x !== 1 || obj.scale.y !== 1) {
-                    context.scale(obj.scale.x, obj.scale.y);
-                }
-                if(obj.centerOffset.x !== 0 || obj.centerOffset.y !== 0) {
-                    context.translate(-1 * obj.centerOffset.x, -1 * obj.centerOffset.y);
-                }
-                if(obj.getAbsoluteAlpha() !== 1) {
-                    context.globalAlpha = obj.getAbsoluteAlpha();
-                }
-            }
-
-            // stage transform
             context.save();
-            if(stage && (stage.scale.x !== 1 || stage.scale.y !== 1)) {
-                context.scale(stage.scale.x, stage.scale.y);
-            }
+            for(var n = 0; n < family.length; n++) {
+                var node = family[n];
+                var m = node.getTransform().getMatrix();
+                context.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
 
+                if(node.getAbsoluteAlpha() !== 1) {
+                    context.globalAlpha = node.getAbsoluteAlpha();
+                }
+            }
             this.tempLayer = layer;
             this.drawFunc.call(this);
-
-            // children restore
-            for(var i = 0; i < family.length; i++) {
-                context.restore();
-            }
-
-            // stage restore
             context.restore();
         }
     }
@@ -1688,7 +1980,6 @@ Kinetic.GlobalObject.extend(Kinetic.Shape, Kinetic.Node);
  */
 Kinetic.Rect = function(config) {
     config.drawFunc = function() {
-        var canvas = this.getCanvas();
         var context = this.getContext();
         context.beginPath();
         context.rect(0, 0, this.width, this.height);
@@ -1741,6 +2032,7 @@ Kinetic.Rect.prototype = {
 
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.Rect, Kinetic.Shape);
+
 ///////////////////////////////////////////////////////////////////////
 //  Circle
 ///////////////////////////////////////////////////////////////////////
@@ -1828,7 +2120,7 @@ Kinetic.Image.prototype = {
     /**
      * get image
      */
-    getImage: function(image) {
+    getImage: function() {
         return this.image;
     },
     /**
@@ -1869,6 +2161,7 @@ Kinetic.Image.prototype = {
 };
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.Image, Kinetic.Shape);
+
 ///////////////////////////////////////////////////////////////////////
 //  Polygon
 ///////////////////////////////////////////////////////////////////////
@@ -1913,6 +2206,7 @@ Kinetic.Polygon.prototype = {
 
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.Polygon, Kinetic.Shape);
+
 ///////////////////////////////////////////////////////////////////////
 //  RegularPolygon
 ///////////////////////////////////////////////////////////////////////
@@ -1986,6 +2280,7 @@ Kinetic.RegularPolygon.prototype = {
 
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.RegularPolygon, Kinetic.Shape);
+
 ///////////////////////////////////////////////////////////////////////
 //  Star
 ///////////////////////////////////////////////////////////////////////
@@ -2059,6 +2354,7 @@ Kinetic.Star.prototype = {
 };
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.Star, Kinetic.Shape);
+
 ///////////////////////////////////////////////////////////////////////
 //  Text
 ///////////////////////////////////////////////////////////////////////
@@ -2074,47 +2370,47 @@ Kinetic.Text = function(config) {
      */
     if(config.textStroke !== undefined || config.textStrokeWidth !== undefined) {
         if(config.textStroke === undefined) {
-            config.textStroke = "black";
-        } else if(config.textStrokeWidth === undefined) {
+            config.textStroke = 'black';
+        }
+        else if(config.textStrokeWidth === undefined) {
             config.textStrokeWidth = 2;
         }
     }
     if(config.align === undefined) {
-        config.align = "left";
+        config.align = 'left';
     }
     if(config.verticalAlign === undefined) {
-        config.verticalAlign = "top";
+        config.verticalAlign = 'top';
     }
     if(config.padding === undefined) {
         config.padding = 0;
     }
 
     config.drawFunc = function() {
-        var canvas = this.getCanvas();
         var context = this.getContext();
-        context.font = this.fontSize + "pt " + this.fontFamily;
-        context.textBaseline = "middle";
+        context.font = this.fontSize + 'pt ' + this.fontFamily;
+        context.textBaseline = 'middle';
         var metrics = context.measureText(this.text);
-        var textHeight = this.fontSize;
+        var textHeight = textHeight = parseInt(this.fontSize, 10);
         var textWidth = metrics.width;
         var p = this.padding;
         var x = 0;
         var y = 0;
 
         switch (this.align) {
-            case "center":
+            case 'center':
                 x = textWidth / -2 - p;
                 break;
-            case "right":
+            case 'right':
                 x = -1 * textWidth - p;
                 break;
         }
 
         switch (this.verticalAlign) {
-            case "middle":
+            case 'middle':
                 y = textHeight / -2 - p;
                 break;
-            case "bottom":
+            case 'bottom':
                 y = -1 * textHeight - p;
                 break;
         }
@@ -2138,8 +2434,9 @@ Kinetic.Text = function(config) {
         if(this.textStroke !== undefined || this.textStrokeWidth !== undefined) {
             // defaults
             if(this.textStroke === undefined) {
-                this.textStroke = "black";
-            } else if(this.textStrokeWidth === undefined) {
+                this.textStroke = 'black';
+            }
+            else if(this.textStrokeWidth === undefined) {
                 this.textStrokeWidth = 2;
             }
             context.lineWidth = this.textStrokeWidth;
@@ -2234,7 +2531,7 @@ Kinetic.Text.prototype = {
     },
     /**
      * set horizontal align of text
-     * @param {String} align align can be "left", "center", or "right"
+     * @param {String} align align can be 'left', 'center', or 'right'
      */
     setAlign: function(align) {
         this.align = align;
@@ -2274,3 +2571,121 @@ Kinetic.Text.prototype = {
 };
 // extend Shape
 Kinetic.GlobalObject.extend(Kinetic.Text, Kinetic.Shape);
+
+/*
+* Last updated November 2011
+* By Simon Sarris
+* www.simonsarris.com
+* sarris@acm.org
+*
+* Free to use and distribute at will
+* So long as you are nice to people, etc
+*/
+
+/*
+* The usage of this class was inspired by some of the work done by a forked
+* project, KineticJS-Ext by Wappworks, which is based on Simon's Transform
+* class.
+*/
+
+/**
+ * Matrix object
+ */
+Kinetic.Transform = function() {
+    this.m = [1, 0, 0, 1, 0, 0];
+}
+
+Kinetic.Transform.prototype = {
+    /**
+     * Apply translation
+     * @param {Number} x
+     * @param {Number} y
+     */
+    translate: function(x, y) {
+        this.m[4] += this.m[0] * x + this.m[2] * y;
+        this.m[5] += this.m[1] * x + this.m[3] * y;
+    },
+    /**
+     * Apply scale
+     * @param {Number} sx
+     * @param {Number} sy
+     */
+    scale: function(sx, sy) {
+        this.m[0] *= sx;
+        this.m[1] *= sx;
+        this.m[2] *= sy;
+        this.m[3] *= sy;
+    },
+    /**
+     * Apply rotation
+     * @param {Number} rad  Angle in radians
+     */
+    rotate: function(rad) {
+        var c = Math.cos(rad);
+        var s = Math.sin(rad);
+        var m11 = this.m[0] * c + this.m[2] * s;
+        var m12 = this.m[1] * c + this.m[3] * s;
+        var m21 = this.m[0] * -s + this.m[2] * c;
+        var m22 = this.m[1] * -s + this.m[3] * c;
+        this.m[0] = m11;
+        this.m[1] = m12;
+        this.m[2] = m21;
+        this.m[3] = m22;
+    },
+    /**
+     * Returns the translation
+     * @returns {Object} 2D point(x, y)
+     */
+    getTranslation: function() {
+        return {
+            x: this.m[4],
+            y: this.m[5]
+        };
+    },
+    /**
+     * Transform multiplication
+     * @param {Kinetic.Transform} matrix
+     */
+    multiply: function(matrix) {
+        var m11 = this.m[0] * matrix.m[0] + this.m[2] * matrix.m[1];
+        var m12 = this.m[1] * matrix.m[0] + this.m[3] * matrix.m[1];
+
+        var m21 = this.m[0] * matrix.m[2] + this.m[2] * matrix.m[3];
+        var m22 = this.m[1] * matrix.m[2] + this.m[3] * matrix.m[3];
+
+        var dx = this.m[0] * matrix.m[4] + this.m[2] * matrix.m[5] + this.m[4];
+        var dy = this.m[1] * matrix.m[4] + this.m[3] * matrix.m[5] + this.m[5];
+
+        this.m[0] = m11;
+        this.m[1] = m12;
+        this.m[2] = m21;
+        this.m[3] = m22;
+        this.m[4] = dx;
+        this.m[5] = dy;
+    },
+    /**
+     * Invert the matrix
+     */
+    invert: function() {
+        var d = 1 / (this.m[0] * this.m[3] - this.m[1] * this.m[2]);
+        var m0 = this.m[3] * d;
+        var m1 = -this.m[1] * d;
+        var m2 = -this.m[2] * d;
+        var m3 = this.m[0] * d;
+        var m4 = d * (this.m[2] * this.m[5] - this.m[3] * this.m[4]);
+        var m5 = d * (this.m[1] * this.m[4] - this.m[0] * this.m[5]);
+        this.m[0] = m0;
+        this.m[1] = m1;
+        this.m[2] = m2;
+        this.m[3] = m3;
+        this.m[4] = m4;
+        this.m[5] = m5;
+    },
+    /**
+     * return matrix
+     */
+    getMatrix: function() {
+        return this.m;
+    }
+};
+
