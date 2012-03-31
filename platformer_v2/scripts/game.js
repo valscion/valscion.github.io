@@ -3,7 +3,7 @@
  */
 
 // When this definition is called, jQuery (or $), Kinetic and debug is defined.
-define(["require"], function GameDefine(require) {
+define(["require", "./map"], function GameDefine(require, Map) {
 
 /** @constructor */
 var Game = function (stage, config) {
@@ -11,6 +11,8 @@ var Game = function (stage, config) {
   this.stage = stage;
   /** Config, @see config.js */
   this.config = config;
+  /** Map, @see map.js */
+  this.map = new Map.definition(this);
   /** Sprites */
   this.sprites = {};
   /** Is the game ready to be drawn */
@@ -38,11 +40,15 @@ Game.prototype = {
     this.loadMedia(function (spriteImg) {
       // Split the sprites
       self.createSprites(spriteImg);
-      // We're ready, allow drawing
-      self.ready = true;
 
-      // Do some initial drawing
-      self.draw();
+      // Load the map
+      self.map.init(function () {
+        // We're ready, allow drawing
+        self.ready = true;
+
+        // Do some initial drawing
+        self.draw();
+      });
     });
   },
 

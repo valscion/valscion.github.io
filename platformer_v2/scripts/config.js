@@ -85,7 +85,17 @@ define(function configDefine() {
             count: 1
           }
         }
-      }
+      },
+      levels: [
+        {
+          name: "Hello, world!",
+          source: "../media/levels/01_hello-world/data.png"
+        },
+        {
+          name: "Oh my",
+          source: "../media/levels/02_oh-my/data.png"
+        }
+      ]
     };
 
   // Put a real pointer in place of the mirror in sprites that mirror another sprite. Yo dawg.
