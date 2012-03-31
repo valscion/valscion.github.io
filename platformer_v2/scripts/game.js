@@ -25,12 +25,11 @@ Game.prototype = {
   init: function () {
     var self = this;
 
-    debug.groupCollapsed('Init');
-    debug.info('Hello, world!');
-    debug.debug($);
-    debug.debug(Kinetic);
-    debug.debug(this.stage);
-    debug.groupEnd();
+    // If the browser sux, stop playing.
+    if ('undefined' === typeof ArrayBuffer || 'undefined' === typeof Uint8Array) {
+      alert('Get a good browser! Yours doesn\'t support ArrayBuffers or Uint8Arrays!');
+      return;
+    }
 
     // Set the #canvascontainer width and height according to the loaded config
     $("#canvascontainer").width(this.config.canvasWidth);
@@ -45,6 +44,9 @@ Game.prototype = {
       self.map.init(function () {
         // We're ready, allow drawing
         self.ready = true;
+
+        // Draw the map :O
+        self.map.draw();
 
         // Do some initial drawing
         self.draw();
@@ -112,10 +114,6 @@ Game.prototype = {
    * @param sprite.mirrored  Should every frame be mirrored or not
    */
   createSingleSprite: function (img, sprite) {
-    debug.groupCollapsed('Creating sprite ' + sprite.name);
-    debug.dir(img);
-    debug.dir(sprite);
-
 
     var canvas = document.createElement('canvas'),
       ctx = canvas.getContext('2d'),
@@ -164,13 +162,11 @@ Game.prototype = {
       img: newImg,
       frames: sprite.frames
     };
-
-    debug.groupEnd();
   },
 
   /** Draws stuff */
   draw: function () {
-    var staticLayer = this.stage.getChild('static'),
+    var objLayer = this.stage.getChild('object'),
       i,
       spriteNames = Object.keys(this.sprites),
       self = this;
@@ -205,18 +201,10 @@ Game.prototype = {
             },
             x: 10,
             y: 10 + i * (sprite.frames.height + 10),
-            currentFrame: 0,
-            draggable: true
+            currentFrame: 0
           });
 
-        shape.on('mouseover', function () {
-          $('#canvascontainer').css({'cursor': 'pointer'});
-        });
-        shape.on('mouseout', function () {
-          $('#canvascontainer').css({'cursor': 'default'});
-        });
-
-        staticLayer.add(shape);
+        objLayer.add(shape);
 
         // Add the shape to the sprite
         sprite.shape = shape;
@@ -224,20 +212,20 @@ Game.prototype = {
     }
 
     // Invoke the draw
-    staticLayer.draw();
+    objLayer.draw();
 
     // Start animations loop
     this.stage.onFrame(function (frame) {
       self.animationDraw(frame);
     });
 
-    this.stage.start();
+    //this.stage.start();
   },
 
   /** Drawing of animations */
   animationDraw: function (frame) {
     var i,
-      staticLayer = this.stage.getChild('static'),
+      objLayer = this.stage.getChild('object'),
       spriteNames = Object.keys(this.sprites),
       sprite;
 
@@ -249,13 +237,14 @@ Game.prototype = {
         continue;
       }
 
-      //sprite.shape.x = 150 * Math.sin(frame.time * 2 * Math.PI / 2000) + 150;
+      //this.map.shape.x = 150 * Math.sin(frame.time * 2 * Math.PI / 2000) + 150;
 
       sprite.shape.currentFrame = Math.floor(frame.time / sprite.frames.time) % sprite.frames.count;
       //sprite.shape.x = 0;
     }
 
-    staticLayer.draw();
+    this.stage.getChild('static').draw();
+    objLayer.draw();
   }
 }
 

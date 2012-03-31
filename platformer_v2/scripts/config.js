@@ -95,7 +95,17 @@ define(function configDefine() {
           name: "Oh my",
           source: "../media/levels/02_oh-my/data.png"
         }
-      ]
+      ],
+      // Tile-IDs in key: value pair
+      tiles: {
+        "": 0,
+        "wall": 1,
+        "ladders": 2,
+        "coin": 3,
+        "start": 4,
+        "crumblingwall": 5,
+        "end": 6
+      }
     };
 
   // Put a real pointer in place of the mirror in sprites that mirror another sprite. Yo dawg.
@@ -113,5 +123,5 @@ define(function configDefine() {
   }
 
   // Return our stuff
-  return config
+  return config;
 });
