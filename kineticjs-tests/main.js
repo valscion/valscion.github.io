@@ -1,5 +1,5 @@
 /** @namespace */
-var vesq = {
+var valscion = {
 
 	/** Tilemap */
 	tilemap: {
@@ -30,42 +30,42 @@ var vesq = {
 		init: function () {
 			var buffer, uint8View, x, y, index;
 
-			buffer = new ArrayBuffer(vesq.tilemap.width * vesq.tilemap.height);
+			buffer = new ArrayBuffer(valscion.tilemap.width * valscion.tilemap.height);
 			uint8View = new Uint8Array(buffer);
-			for (y = 0; y < vesq.tilemap.height; ++y) {
-				for (x = 0; x < vesq.tilemap.width; ++x) {
-					index = y * vesq.tilemap.width + x;
-					uint8View[index] = vesq.tilemap.raw[y][x];
+			for (y = 0; y < valscion.tilemap.height; ++y) {
+				for (x = 0; x < valscion.tilemap.width; ++x) {
+					index = y * valscion.tilemap.width + x;
+					uint8View[index] = valscion.tilemap.raw[y][x];
 				}
 			}
 
-			vesq.tilemap.data = uint8View;
+			valscion.tilemap.data = uint8View;
 		},
 		/** Fetches a tile from the given x- and y-coordinates */
 		get: function (tileX, tileY) {
 			var index;
 
 			// If the map hasn't been initialized yet, return null.
-			if (vesq.tilemap.data === null) {
+			if (valscion.tilemap.data === null) {
 				return null;
 			}
 
-			if (tileX < 0 || tileX >= vesq.tilemap.width || tileY < 0 || tileY >= vesq.tilemap.height) {
+			if (tileX < 0 || tileX >= valscion.tilemap.width || tileY < 0 || tileY >= valscion.tilemap.height) {
 				// We're outside of the map, return null.
 				return null;
 			}
 
 			// Calculate the index in our single-dimensional array
-			index = tileY * vesq.tilemap.width + tileX;
+			index = tileY * valscion.tilemap.width + tileX;
 
-			return vesq.tilemap.data[index];
+			return valscion.tilemap.data[index];
 		}
 	},
 
 	/** Gets called when DOM is ready */
 	init: function () {
 		// Process raw tilemap to 8-bit array
-		vesq.tilemap.init();
+		valscion.tilemap.init();
 		// Setup Kinetic
 		var stage = new Kinetic.Stage('canvascontainer', 800, 600),
 			tilemapLayer = new Kinetic.Layer({name: 'tilemap'}),
@@ -74,24 +74,24 @@ var vesq = {
 			y;
 
 		// Draw the tilemap to tilemapLayer
-		for (x = 0; x < vesq.tilemap.width; x++) {
-			for (y = 0; y < vesq.tilemap.height; y++) {
+		for (x = 0; x < valscion.tilemap.width; x++) {
+			for (y = 0; y < valscion.tilemap.height; y++) {
 				// Closure?
 				(function () {
 					var tmpShape = new Kinetic.Rect({
-						x: x * vesq.tilemap.tileWidth,
-						y: y * vesq.tilemap.tileHeight,
-						width: vesq.tilemap.tileWidth,
-						height: vesq.tilemap.tileHeight,
+						x: x * valscion.tilemap.tileWidth,
+						y: y * valscion.tilemap.tileHeight,
+						width: valscion.tilemap.tileWidth,
+						height: valscion.tilemap.tileHeight,
 						alpha: 0.5,
-						fill: (vesq.tilemap.get(x, y) === 1) ? '#aa0' : '#00a'
+						fill: (valscion.tilemap.get(x, y) === 1) ? '#aa0' : '#00a'
 					});
 					// Attach various listeners to this shape
-					tmpShape.on("mouseover", function () { vesq.tile.mouseover(tmpShape); });
-					tmpShape.on("click", function () { vesq.tile.click(tmpShape); });
-					tmpShape.on("mouseout", function () { vesq.tile.mouseout(tmpShape); });
-					tmpShape.on("touchstart", function () { vesq.tile.touchstart(tmpShape); });
-					tmpShape.on("touchend", function () { vesq.tile.touchend(tmpShape); });
+					tmpShape.on("mouseover", function () { valscion.tile.mouseover(tmpShape); });
+					tmpShape.on("click", function () { valscion.tile.click(tmpShape); });
+					tmpShape.on("mouseout", function () { valscion.tile.mouseout(tmpShape); });
+					tmpShape.on("touchstart", function () { valscion.tile.touchstart(tmpShape); });
+					tmpShape.on("touchend", function () { valscion.tile.touchend(tmpShape); });
 
 					// Add this shape (tile) to the map
 					tilemapLayer.add(tmpShape);
@@ -109,7 +109,7 @@ var vesq = {
 		/** Gets called when the mouse hovers over any tile */
 		mouseover: function (tileShape) {
 			// Don't animate if set to stop animating for this tile
-			if (tileShape.vesq && tileShape.vesq.noAnimations) {
+			if (tileShape.valscion && tileShape.valscion.noAnimations) {
 				return;
 			}
 			var stage = tileShape.getStage(),
@@ -125,15 +125,15 @@ var vesq = {
 				tilemapLayer = stage.getChild('tilemap'),
 				objectLayer = stage.getChild('object');
 
-			if (!tileShape.vesq) {
-				tileShape.vesq = {};
+			if (!tileShape.valscion) {
+				tileShape.valscion = {};
 			}
 
 			// Toggle the animation of this tile
-			tileShape.vesq.noAnimations = !tileShape.vesq.noAnimations;
+			tileShape.valscion.noAnimations = !tileShape.valscion.noAnimations;
 
 			tileShape.moveTo(objectLayer);
-			if (tileShape.vesq.noAnimations) {
+			if (tileShape.valscion.noAnimations) {
 				tileShape.setAlpha(1.0);
 				objectLayer.draw();
 			} else {
@@ -145,7 +145,7 @@ var vesq = {
 		mouseout: function (tileShape) {
 			return;
 			// Don't animate if set to stop animating for this tile
-			if (tileShape.vesq && tileShape.vesq.noAnimations) {
+			if (tileShape.valscion && tileShape.valscion.noAnimations) {
 				return;
 			}
 			var stage = tileShape.getStage(),
@@ -159,12 +159,12 @@ var vesq = {
 		/** Gets called when a tile is touched */
 		touchstart: function (tileShape) {
 			// Call mouseover
-			vesq.tile.mouseover(tileShape);
+			valscion.tile.mouseover(tileShape);
 		},
 		/** Gets called when a tile is no longer touched */
 		touchend: function (tileShape) {
 			// Call mouseout
-			vesq.tile.mouseout(tileShape);
+			valscion.tile.mouseout(tileShape);
 		}
 	}
 }
